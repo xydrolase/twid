@@ -66,7 +66,6 @@ twid_cli_request(int clifd, int op, char *tweet_post_body){
 
 	/* receiving response */
 	while((n = read(clifd, recv, MAXLINE)) > 0){
-		printf("INCOMING RESPONSE...\n");
 		fputs(recv, stdout);
 		memset(recv, 0, MAXLINE);	/* clear buffer */
 	}

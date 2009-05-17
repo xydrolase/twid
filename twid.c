@@ -82,6 +82,12 @@ main(int argc, char *argv[])
 				exit(0);
 			}
 			
+			fprintf(stdout, "%s, welcome to twid and Twitter :)\n",
+				twid_twitter_user->username);
+			
+			/* all preparation work done, and we've logon onto Twitter
+			service, now daemonize to be a daemon process */
+			
 			/* daemonize */
 			twid_daemonize();
 			twid_is_daemon = 1;

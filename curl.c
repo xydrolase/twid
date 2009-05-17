@@ -1,4 +1,5 @@
 #include "curl.h"
+#include <syslog.h>
 
 CURLcode
 twid_curl_perform(const char *url, const char *post_body, int auth, 
@@ -78,6 +79,7 @@ twid_normalize_tweet(char *tweet_raw_bytes){
 		int tweet_length = strlen(tweet_escaped);
 		/* allocate memory for store the whole POST body */
 		tweet_post_body = (char *)malloc(tweet_length + 7);
+		memset(tweet_post_body, 0, tweet_length + 7);
 		
 		/* a safe cast of string duplication */
 		strncpy(tweet_post_body, "status=", 7);

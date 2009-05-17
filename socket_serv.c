@@ -75,19 +75,18 @@ twid_serv_handler(int clifd){
 	/* only one packet is acceptable, any other packet will be discarded */
 	int n;
 	struct twid_packet_upstream packet_s;
-	while((n = read(clifd, &packet_s, sizeof(packet_s))) > 0){
+	if((n = read(clifd, &packet_s, sizeof(packet_s))) > 0){
 		if (n == sizeof(packet_s)){
 			if (packet_s.flag == 0xee){
 				if (packet_s.op & TWID_OP_NEW_TWEET){
 					if (*packet_s.tweet && strlen(packet_s.tweet)){
-						syslog(LOG_ERR, "New tweet: %s\n", packet_s.tweet);
-						twid_serv_respond(clifd, "Hi from twid!");
+						
 						if (twid_twitter_new_tweet(packet_s.tweet)){
-							twid_serv_respond(clifd, "got it.");
+							twid_serv_respond(clifd, "Got it.\n");
 						}
 						else{
 							twid_serv_respond(clifd,
-							"Failed to publish your tweet.");
+							"Failed to publish your tweet.\n");
 						}
 					}
 					else{
@@ -110,6 +109,7 @@ twid_serv_handler(int clifd){
 			}
 		}
 	}
+	close(clifd);	/* close connection */
 	
 	/* finished */
 	

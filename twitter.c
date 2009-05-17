@@ -24,7 +24,6 @@ while submitting the authentication request, user: %s\n",
 	
 	/* done calling curl, now deal with the response */
 	if (twid_twitter_is_auth_valid(pstream_body)){
-		printf("auth valid\n");
 		twid_twitter_cache_sessionid(pstream_header->text);
 		twid_twitter_get_limits();
 	}
@@ -55,7 +54,6 @@ twid_twitter_end_session(){
 
 void
 twid_twitter_get_limits(){
-	printf("getting limits..., sess=%s\n", twid_twitter_user->sessionid);
 	PSTREAM pstream = (PSTREAM)twid_init_stream_chunk();
 	
 	CURLcode code = twid_curl_perform(
@@ -75,7 +73,6 @@ twid_twitter_get_limits(){
 	}
 	
 	JsonParser *parser = json_parser_new();
-	printf("BODY: %s\n", pstream->text);
 	JsonNode *root = (JsonNode *)twid_json_get_root(pstream->text, parser);
 	
 	if (root == NULL){
@@ -117,7 +114,7 @@ twid_twitter_new_tweet(char *tweet_post_body){
 	CURLcode code = twid_curl_perform(
 		"http://twitter.com/statuses/update.json",	/* API entry */
 		tweet_post_body,							/* POST body */
-		0,											/* No authentication */
+		1,											/* No authentication */
 		NULL,										/* No header callback */
 		pstream_body								/* Response callback */
 	);
@@ -186,7 +183,6 @@ twid_twitter_cache_sessionid(char *buffer){
 			}
 		}
 		
-		printf("matches: %d\n", matches);
 		if (matches == 2){
 			/* $1 for the session id */
 			i = 1;
