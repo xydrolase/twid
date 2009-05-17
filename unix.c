@@ -1,21 +1,33 @@
-#include <unistd.h>
-
-#define MAXLEN 1024;
+#include "unix.h"
 
 /* Parse GNU style parameters/options */
 void
-twid_getopt(int argc, char *argv[], struct twitter_user *user){
+twid_getopt(int argc, char *argv[], TWITTER_USER tuser){
 	char op;
-	while( op = getopt(argc, argv, "up") != -1 ){
+	int length;
+	tuser->username = NULL;
+	tuser->password = NULL;
+	
+	while( (op = getopt(argc, argv, "u:p:q")) != -1 ){
 		switch(op){
 			case 'u':
 				/* username */
+				length = strlen(optarg);
+				tuser->username = (char *)malloc(length + 1);
+				strncpy(tuser->username, optarg, length);
+				
 				break;
 			case 'p':
 				/* password */
+				length = strlen(optarg);
+				tuser->password = (char *)malloc(length + 1);
+				strncpy(tuser->password, optarg, length);
+				
 				break;
 			case 'q':
 				/* quiet mode without notify */
+				tuser->quiet_mode = 1;
+				
 				break;
 			case '?':
 				if (isprint(optopt)){
@@ -26,12 +38,77 @@ twid_getopt(int argc, char *argv[], struct twitter_user *user){
 					exit(0);
 				}
 				break;
-				
+		}	
 	}
 }
 
-void
-twid_already_running(){
+int
+twid_getopt_cli(int argc, char *argv[]){
+	char c;
+	int op = 0;
+	while((c = getopt(argc, argv, "Ql")) != -1){
+		switch(c){
+			case 'Q':
+				/* retrieve quota(rate limits) */
+				op |= TWID_OP_QUOTA;
+				break;
+			case 'l':
+				/* list tweets */
+				op |= TWID_OP_LIST;
+				break;
+			case '?':
+				fprintf(stderr, "Unknown option: '-%c'\n", optopt);
+				exit(0);
+				break;
+		}
+	}
+	
+	return op;
+	
+}
+
+int
+twid_instance_exists(){
+	int fd, n;
+	char buf[16];
+	
+	fd = open(LOCKFILE, O_CREAT|O_RDWR, LOCKMODE);
+	if (fd < 0){
+		syslog(LOG_ERR, "Can't open lock file: %s", LOCKFILE);
+		exit(0);
+	}
+	
+	if (twid_lockfile(fd) < 0) {
+		if (errno = EACCES || errno == EAGAIN) {
+			close(fd);
+			return 1;
+		}
+		syslog(LOG_ERR, "Can't lock file: %s", LOCKFILE);
+		exit(0);
+	}
+	
+	if (ftruncate(fd, 0) < 0){
+		syslog(LOG_ERR, "Can't truncate file: %s to zero length", LOCKFILE);
+		exit(0);
+	}
+	sprintf(buf, "%ld", (long)getpid());
+	if ((n = write(fd, buf, strlen(buf) + 1)) < strlen(buf) + 1){
+		syslog(LOG_ERR, "Error writing PID to lockfile: %s", LOCKFILE);
+		exit(0);
+	}
+	
+	
+	return 0;
+}
+
+int
+twid_lockfile(int fd){
+	struct flock fl;
+	fl.l_type = F_WRLCK;
+	fl.l_start = 0;
+	fl.l_whence = SEEK_SET;
+	fl.l_len = 0;
+	return (fcntl(fd, F_SETLK, &fl));
 }
 
 /* Daemonize Twid as a daemon service to handle Twitter API */
@@ -76,7 +153,7 @@ twid_daemonize(){
         printf("[ERROR] Failed to fork()\n");
         exit(0);
     }
-    else (pid != 0){
+    else if (pid != 0){
         /* first child here */
         exit(0);
     }
@@ -98,42 +175,15 @@ twid_daemonize(){
     fd0 = open("/dev/null", O_RDWR);    /* open /dev/null to forbid standard I/O */
     fd1 = dup(0);
     fd2 = dup(0);
-}
-
-/*	
-	Open a pipe, later open by fdopen() as a stream, registering as a callback
-	stream for CURLOPT_WRITEDATA.
+    
+    /* logging */
+	openlog("twid", LOG_CONS, LOG_DAEMON);
 	
-	void *callback is the callback function pointer which processes the HTML
-	response after calling the Twitter API
-*/
-int
-twid_open_pipe(void (*callback)(const char *)){
-	int pipe_fd[2], pid;
-	
-	if (pipe(pipe_fd) < 0){
-		/* Daemonized already, output error to log file */
-	}
-	
-	if ((pid = fork()) < 0){
-		/* Failed to fork */
-	}
-	else if (pid == 0){
-		/* child process: open the pipe, waiting for reading while blocked */
-		close(pipe_fd[1]);	/* close the writing fd */
+	if (fd0 != 0 || fd1 != 1 || fd2 != 2){
+		/* bad file descriptors */
+		syslog(LOG_ERR, "Unexcepted file descriptors: %d %d %d", 
+			fd0, fd1, fd2);
 		
-		char response[MAXLEN];
-		int n = read(pipe_fd[0], response, MAXLEN);
-		
-		callback(response);	/* callback */
-		
-		exit(0);	/* child process finished workload, exit here */
-		
-	}
-	else{
-		/* parent process here */
-		close(pipe_fd[0]);
-		
-		return pipe_fd[1];
+		exit(0);
 	}
 }

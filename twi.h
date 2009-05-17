@@ -9,6 +9,4 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
-#include "glib-object.h"
-#include "json-glib.h"
 #include "misc.h"

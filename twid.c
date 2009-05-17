@@ -1,147 +1,131 @@
-#include <stdio.h>
-#include <curl/curl.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
 #include "twid.h"
 
-#define MAX_LEN 1024
-
-/* twid, a flexible twitter service */
-
-
-/* return: fd for writing in the parent process */
-int
-init_pipe(){
-	/* FIFO processing of HTTP downloading stream */
-	/* TEST ONLY */
-	
-	/* initialize the pipe first */
-	int pipe_fd[2];
-	if (pipe(pipe_fd) < 0){
-		printf("[ERROR] Failed create a pipeline\n");
-		exit(0);
-	}
-	
-	int pid = fork();	/* fork a child process */
-	if (pid == 0){
-		/* child process here, open pipe for reading */
-		/* close the writing fd */
-		close(pipe_fd[1]);
+/* 
+	[twid]
+		a flexible twitter service on *nix powered by command lines :p
 		
-		/* buffer for reading */
-		/* read for only 50 bytes as a test of truncating string */
-		char line[50];	
-		int n = read(pipe_fd[0], line, 50);
-		
-		printf("[PIPE READ]%s\n", line);
-		printf("[PIPE READ]%d bytes read\n", n);
-		
-		/* finished reading, exit child process */
-		exit(0);
-	}
-	else {
-		/* parent process here */
-		close(pipe_fd[0]);
-		return pipe_fd[1];	/* return pipe fd here */
-	}
-}
-
-CURLcode twid_publish_tweet()
-{
 	
-}
+	Author : killkeeper
+	killkeeper AT gmail DOT com
+	http://tremblefrog.org/
+ */
 
-
-
-const char*
-twid_concat_auth_body(struct twitter_user* user)
-{
-	char *auth_body = (char *)malloc(MAX_LEN);
-	memset(auth_body, 0, MAX_LEN);	/* initialize the memory of string to zero */
-	
-	snprintf(auth_body, MAX_LEN, "%s:%s", 
-			user->username, user->password);
-	
-	return auth_body;
-}
 
 int
 main(int argc, char *argv[])
 {
-	CURL *curl;
-	CURLcode code;
+	int twid_is_daemon = 0;
 	
 	/* twid_getopt */
 	
-	char auth_userpwd[] = "killkeeper:219078imyinxin";
 	char *tweet_post_body = 0, *tweet_escaped = 0;
 	char *tweet_raw_bytes = 0;
+	int twid_op = 0;
+	
+	/* twid_twitter_user */
+	twid_twitter_user = (TWITTER_USER)malloc(sizeof(struct twitter_user));
+	twid_twitter_user->username = NULL;
+	twid_twitter_user->password = NULL;
+	twid_twitter_user->sessionid = NULL;
+		
+	g_type_init ();
 	
 	if (argc < 2)
 	{
-		printf("Usage: %s <your tweet>\n", argv[0]);
+		printf("Usage: [OPTIONS] %s <your tweet>\n", argv[0]);
 		return 0;
 	}
 	else
 	{
-		/* considering the utf-8 encoding where one character takes 3 bytes */ 
- 		/* the memory needed should be 140 * 3 = 420 bytes */
-		tweet_raw_bytes = (char *)malloc(140 * 3);
-		strncpy(tweet_raw_bytes, argv[1], 420);	
-		/* truncate the string to 420 bytes */
-		
-		tweet_escaped = curl_easy_escape(curl, tweet_raw_bytes, 0);
-		/* escape the post body */
-		if (tweet_escaped)
-		{
-			int tweet_length = strlen(tweet_escaped);
-			tweet_post_body = (char *)malloc(tweet_length + 7 + 1);
-			/* allocate memory for store the whole POST body */
+		if (1){
+			/* first instance, register to be the daemon process */
 			
-			/* a safe cast of string duplication */
-			strncpy(tweet_post_body, "status=", 7);
-			strncat(tweet_post_body, tweet_escaped, tweet_length);
-			/* concat the two strings */
+			/* getopt */
+			twid_getopt(argc, argv, twid_twitter_user);
+			
+			if (!twid_twitter_user->username || 
+				!(*twid_twitter_user->username)){
+				
+				//twid_query_username(twid_twitter_user);
+				printf("YOUR USERNAME: ");
+				
+				if (!twid_twitter_user->password || 
+					!(*twid_twitter_user->password)){
+					//twid_query_password(twid_twitter_user);
+					printf("\nYOUR PASSWORD: ");
+				}
+			}
+			
+			twid_concat_auth_body(twid_twitter_user);
+			
+			if (optind == argc - 1){
+				/* the last argument, which is the tweet */
+				tweet_raw_bytes = argv[optind];
+			}
+			else{
+				fprintf(stderr, "Too many arguments.\n");
+				exit(0);
+			}
+			
+			/* regex */
+			if (!twid_compile_regex(REGEX_SESSION, PATTERN_SESSION)){
+				/* error process */
+				exit(0);
+			}
+			
+			/* login in */
+			if (!twid_twitter_authenticate()){
+				fprintf(stderr, 
+						"Failed to authenticate your account: %s.\n",
+						twid_twitter_user->username
+				);
+				exit(0);
+			}
+			
+			/* daemonize */
+			twid_daemonize();
+			twid_is_daemon = 1;
+			
 		}
-		else
-		{
-			printf("[ERROR] Escape failed\n");
-			return 0;
+		
+		if (tweet_raw_bytes){
+			tweet_post_body = (char *)twid_normalize_tweet(tweet_raw_bytes);
 		}
 	}
 	
-	int pfd = init_pipe();
-	if (pfd < 0){
-		printf("Failed to create pipe\n");
-		exit(0);
+	if (twid_is_daemon){
+		/* lock again */
+		if (twid_instance_exists()){
+			syslog(LOG_ERR, "Twid is already running.");
+			exit(0);
+		}
+		
+		/* This is the main daemon process */
+		int listenfd = twid_serv_listen(TWID_SERV_SOCKET_PATH);
+		if (listenfd < 0){
+			syslog(LOG_ERR, "Failed to listen to requests, exiting now.");
+			exit(0);
+		}
+		
+		/* Do we have a tweet to be published ? */
+		if (tweet_post_body){
+			/* publish */
+			twid_twitter_new_tweet(tweet_post_body);
+		}
+		
+		/* loop, waiting for requests */
+		for(;;)
+			twid_serv_accept(listenfd);
+			
+		/* NOTE: we are not implementing the socket in a ASYNC mode now
+		since the anticipated requests are considerably small, which indicates 
+		that the processes being forked would rarely contribute to the 
+		declination of performance.
+		
+		We might later rewrite this part in ASYNC :)
+		*/
+		
 	}
 	
-	/* open the fd as a stream for writing, which is supported by cURL */
-	FILE *fp = fdopen(pfd, "w");
-	
-	curl = curl_easy_init();
-	if(curl) {
-		curl_easy_setopt(curl, CURLOPT_URL, "http://twitter.com/statuses/update.json");
-		curl_easy_setopt(curl, CURLOPT_POST, 1);	/* use POST method */
-		curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);  
-		/* HTTP Basic Authentication */
-		curl_easy_setopt(curl, CURLOPT_USERPWD, auth_userpwd);	/* POST body */
-		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, tweet_post_body);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);	/* callback stream */
-		
-		code = curl_easy_perform(curl);
- 		if (code != CURLE_OK)
- 		{
- 			printf("[ERROR] Failed to call Twitter API...\n");
- 		}
- 
-		/* always cleanup */
-		curl_easy_cleanup(curl);
-		
-		/* free the memory allocated for storing strings */
-		free(tweet_post_body);
-		free(tweet_escaped);
-	}
 	return 0;
 }
