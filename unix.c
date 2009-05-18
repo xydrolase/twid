@@ -113,6 +113,72 @@ void twid_sig_chld(int signo){
 	return;
 }
 
+void twid_query_username(TWITTER_USER tuser){
+	char buffer[256];
+	int slen;
+	
+	printf("Twitter ID / Email: ");
+	if (fgets(buffer, 255, stdin) <= 0){
+		fprintf(stderr, "Invalid Twittier ID / Email.\n");
+		exit(0);
+	}
+	
+	if ((slen = (strlen(buffer) - 1)) > 1){
+		buffer[slen] = 0;	/* override the LF */
+		tuser->username = (char *)malloc(slen); /* ignore the LF */
+		strncpy(tuser->username, buffer, slen);
+	}
+	else{
+		fprintf(stderr, "Invalid Twittier ID / Email.\n");
+		exit(0);
+	}
+}
+
+void twid_query_password(TWITTER_USER tuser){
+
+	struct termios term;
+	int oldflag;
+	char buffer[256];
+	int slen;
+	
+	if (tcgetattr(1, &term) < 0){
+		fprintf(stderr,
+		"[ERROR] Failed to get TERMINAL I/O status, your password might be \
+visible.\n");
+	}
+	else{
+		oldflag = term.c_lflag;
+		term.c_lflag &= ~(ECHO|ECHOE|ECHOK|ECHONL);	/* set new flag */
+	}
+	
+	if (tcsetattr(1, TCSAFLUSH, &term) < 0){
+		fprintf(stderr,
+		"[ERROR] Failed to set TERMINAL I/O status, your password might be \
+visible.\n");
+	}
+	
+	printf("Your password: ");
+	fflush(stdout);	/* flush all data, and validate the new TERMIO status */
+	if (fgets(buffer, 255, stdin) <= 0){
+		fprintf(stderr, "Invalid Twittier ID / Email.\n");
+		exit(0);
+	}
+	
+	/* recover termio */
+	term.c_lflag = oldflag;
+	tcsetattr(1, TCSANOW, &term);
+	
+	if ((slen = (strlen(buffer) - 1)) > 1){
+		buffer[slen] = 0;	/* override the LF */
+		tuser->password = (char *)malloc(slen); /* ignore the LF */
+		strncpy(tuser->password, buffer, slen);
+	}
+	else{
+		fprintf(stderr, "Invalid password.\n");
+		exit(0);
+	}
+}
+
 int
 twid_lockfile(int fd){
 	struct flock fl;

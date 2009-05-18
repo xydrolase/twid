@@ -29,7 +29,7 @@ main(int argc, char *argv[])
 		
 	g_type_init ();
 	
-	if (argc < 2)
+	if (argc < 1)
 	{
 		printf("Usage: [OPTIONS] %s <your tweet>\n", argv[0]);
 		return 0;
@@ -45,13 +45,11 @@ main(int argc, char *argv[])
 			if (!twid_twitter_user->username || 
 				!(*twid_twitter_user->username)){
 				
-				//twid_query_username(twid_twitter_user);
-				printf("YOUR USERNAME: ");
+				twid_query_username(twid_twitter_user);
 				
 				if (!twid_twitter_user->password || 
 					!(*twid_twitter_user->password)){
-					//twid_query_password(twid_twitter_user);
-					printf("\nYOUR PASSWORD: ");
+					twid_query_password(twid_twitter_user);
 				}
 			}
 			
@@ -61,7 +59,7 @@ main(int argc, char *argv[])
 				/* the last argument, which is the tweet */
 				tweet_raw_bytes = argv[optind];
 			}
-			else{
+			else if (optind < argc - 1){
 				fprintf(stderr, "Too many arguments.\n");
 				exit(0);
 			}
