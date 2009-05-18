@@ -13,3 +13,5 @@
 #include "glib-object.h"
 #include "json-glib.h"
 #include "misc.h"
+
+extern void twid_sig_chld(int signo);

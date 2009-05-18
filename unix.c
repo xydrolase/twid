@@ -104,7 +104,7 @@ twid_instance_exists(){
 void twid_sig_chld(int signo){
 	/* waiting for the child process to exit */
 	
-	pid_t pid
+	pid_t pid;
 	int stat;
 	
 	while((pid = waitpid(-1, &stat, WNOHANG)) > 0)
