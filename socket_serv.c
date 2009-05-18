@@ -37,8 +37,15 @@ twid_serv_accept(int listenfd){
 	pid_t pid;
 	
 	if ((clifd = accept(listenfd, NULL, NULL)) < 0){
-		syslog(LOG_ERR, "Failed to accept request from client");
-		return -1;
+		if (errno == EINTR){
+			/* interrupted by signal, process and resume */
+			return 0;
+		}
+		else{
+			/* errors other than EINTR */
+			syslog(LOG_ERR, "Failed to accept request from client");
+			return -1;
+		}
 	}
 	
 	/* Request came, fork a child process to deal with the packets */
@@ -110,6 +117,7 @@ twid_serv_handler(int clifd){
 		}
 	}
 	close(clifd);	/* close connection */
+	exit(0);	/* exit the child process */
 	
 	/* finished */
 	

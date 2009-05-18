@@ -4,7 +4,6 @@
 	[twid]
 		a flexible twitter service on *nix powered by command lines :p
 		
-	
 	Author : killkeeper
 	killkeeper AT gmail DOT com
 	http://tremblefrog.org/
@@ -91,6 +90,9 @@ main(int argc, char *argv[])
 			/* daemonize */
 			twid_daemonize();
 			twid_is_daemon = 1;
+			
+			/* register handler for SIGCHLD */
+			signal(SIGCHLD, twid_sig_chld);
 			
 		}
 		

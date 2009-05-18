@@ -101,6 +101,18 @@ twid_instance_exists(){
 	return 0;
 }
 
+void twid_sig_chld(int signo){
+	/* waiting for the child process to exit */
+	
+	pid_t pid
+	int stat;
+	
+	while((pid = waitpid(-1, &stat, WNOHANG)) > 0)
+		;	/* do nothing, just wait every child process to terminate normaly */
+	
+	return;
+}
+
 int
 twid_lockfile(int fd){
 	struct flock fl;

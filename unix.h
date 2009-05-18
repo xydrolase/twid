@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include <sys/wait.h>
 #include <string.h>
 #include <signal.h>
 #include <stdio.h>
